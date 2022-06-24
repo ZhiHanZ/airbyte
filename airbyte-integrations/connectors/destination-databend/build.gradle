@@ -21,6 +21,8 @@ dependencies {
     // https://mvnrepository.com/artifact/ru.yandex.clickhouse/clickhouse-jdbc
     implementation 'ru.yandex.clickhouse:clickhouse-jdbc:0.3.1-patch'
 
+    implementation 'com.alibaba:fastjson:1.2.76'
+
     // https://mvnrepository.com/artifact/org.testcontainers/clickhouse
     testImplementation libs.connectors.destination.testcontainers.clickhouse
 
