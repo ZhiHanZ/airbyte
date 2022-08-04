@@ -1,0 +1,51 @@
+{
+  "documentationUrl": "https://databend.rs/doc",
+  "supported_destination_sync_modes": ["overwrite", "append"],
+  "supportsIncremental": true,
+  "supportsDBT": false,
+  "supportsNormalization": false,
+  "connectionSpecification": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Destination Databend",
+    "type": "object",
+    "required": ["host", "port", "username", "password", "database"],
+    "additionalProperties": false,
+    "properties": {
+      "host": {
+        "title": "Host URL",
+        "type": "string",
+        "description": "The host url for databend clickhouse address.",
+        "order": 0
+      },
+      "port": {
+        "title": "Port",
+        "description": "JDBC port of the database.",
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 65536,
+        "default": 443,
+        "examples": ["443"],
+        "order": 1
+      },
+      "username": {
+        "title": "SQL UserName",
+        "type": "string",
+        "description": "The SQL user connect to databend",
+        "order": 3
+      },
+      "password": {
+        "title": "SQL Password",
+        "type": "string",
+        "airbyte_secret": true,
+        "description": "sql password",
+        "order": 4
+      },
+      "database": {
+        "title": "SQL Database name",
+        "type": "string",
+        "description": "sql database name",
+        "order": 5
+      }
+    }
+  }
+}
