@@ -47,9 +47,8 @@ public class RedshiftDestination extends SwitchingDestination<RedshiftDestinatio
   }
 
   public static DestinationType determineUploadMode(final JsonNode config) {
-
+  
     final JsonNode jsonNode = findS3Options(config);
-
     if (anyOfS3FieldsAreNullOrEmpty(jsonNode)) {
       LOGGER.warn("The \"standard\" upload mode is not performant, and is not recommended for production. " +
           "Please use the Amazon S3 upload mode if you are syncing a large amount of data.");

@@ -25,7 +25,7 @@ class CSVBuffer():
         self.pair = config.get_pair()
         self.directory = tempfile.mkdtemp(prefix=str(self.pair))
         self.cli = databend_cli
-        
+        self.logger = databend_cli.logger
     def get_stage_id(self):
         return self.stage_id
 
@@ -37,6 +37,7 @@ class CSVBuffer():
             self.flush()
     def flush(self):
         full_name = f"{self.directory}/{self.pair.name}_{self.pair.namespace}_{self.stage_id}.csv"
+        self.logger.info(f"Flushing buffer to {full_name} size {self.buffer_size}")
         with open(f"{full_name}", "w") as f:
             writer = csv.writer(f, doublequote=True, quoting=csv.QUOTE_ALL, escapechar='\\')
             writer.writerows(self.buffer)
@@ -60,7 +61,12 @@ class CSVBuffer():
     def get_uploaded_files_str(self):
         return " files = ( " + ", ".join(f"'{file}'" for file in self.uploaded_files) + " )"
     def upload_file_to_stage(self, file_name, stage, stage_path):
+            
         base = os.path.basename(file_name)
+        size = os.path.getsize(filename=file_name)
+        if size == 0:
+            self.logger.info(f"no need to upload file {file_name}, the size is empty")
+            return base
         attempts = 0
         success = False
         exceptions = []
@@ -71,14 +77,14 @@ class CSVBuffer():
                 presigned_url = res[0][2]
                 json_acceptable_string = headers.replace("'", "\"")
                 d = json.loads(json_acceptable_string)
-                logging.getLogger("airbyte").info(f"Uploading {file_name} to {presigned_url}, headers {d}")
+                self.logger.info(f"Uploading {file_name} size: {size} to {presigned_url}, headers {d}")
                 r = requests.put(presigned_url, data=open(file_name, 'rb'), headers=d)
                 if r.status_code < 200 or r.status_code >= 400:
                     raise Exception(f"Upload failed with status code {r.status_code}")
-                logging.getLogger("airbyte").info(f"Uploaded {file_name} to {stage}/{stage_path}/{base}")
+                self.logger.info(f"Uploaded {file_name} to {stage}/{stage_path}/{base}")
                 success = True
             except Exception as e:
-                logging.getLogger('airbyte').error(f"Upload failed with exception , retry {e}")
+                self.logger.error(f"Upload failed with exception , retry {e}")
                 exceptions.append(e)
                 attempts += 1
                 if attempts == 3:

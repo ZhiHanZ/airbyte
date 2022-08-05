@@ -3,6 +3,7 @@
 #
 
 import json
+import time
 from typing import Any, Dict, List, Mapping
 
 import pytest
@@ -75,7 +76,7 @@ def _state(data: Dict[str, Any]) -> AirbyteMessage:
 
 def _record(stream: str, str_value: str, int_value: int) -> AirbyteMessage:
     return AirbyteMessage(
-        type=Type.RECORD, record=AirbyteRecordMessage(stream=stream, data={"str_col": str_value, "int_col": int_value}, emitted_at=0)
+        type=Type.RECORD, record=AirbyteRecordMessage(stream=stream, data={"str_col": str_value, "int_col": int_value}, emitted_at= time.time_ns() // 1_000_000 )
     )
 
 

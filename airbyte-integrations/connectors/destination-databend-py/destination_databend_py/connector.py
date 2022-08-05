@@ -8,15 +8,16 @@ default_database = "default"
 class ClickhouseConnector():
 
     def connect(self,
+                logger,
                 host,
                 port,
                 username="root",
                 password="",
                 database=default_database):
         self._uri = f"clickhouse+http://{username}:{password}@{host}:{port}/{database}?protocol=https"
-        logging.getLogger("airbyte").debug(self._uri)
+        logger.debug(self._uri)
         self._additonal_headers = dict()
-
+        self.logger = logger
         self._session = None
 
     def query_with_session(self, statement):
@@ -38,7 +39,7 @@ class ClickhouseConnector():
             engine = create_engine(self._uri,
                                    connect_args={'sslmode': "none", "ssl": "on"})
             self._session = make_session(engine)
-        logging.getLogger("airbyte").debug(parseSQL(statement))
+        self.logger.info(parseSQL(statement))
         
         return self._session.execute(parseSQL(statement))
 

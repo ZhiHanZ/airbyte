@@ -34,20 +34,21 @@ public class DatabendSqlOperations extends JdbcSqlOperations {
   @Override
   public void createSchemaIfNotExists(final JdbcDatabase database, final String schemaName) throws Exception {
     database.execute(String.format("CREATE DATABASE IF NOT EXISTS %s;\n", schemaName));
+    
   }
 
   @Override
   public boolean isSchemaRequired() {
     return false;
   }
-
+  
   @Override
   public String createTableQuery(final JdbcDatabase database, final String schemaName, final String tableName) {
     return String.format(
         "CREATE TABLE IF NOT EXISTS %s.%s ( \n"
             + "%s String,\n"
             + "%s JSON,\n"
-            + "%s Date DEFAULT now(),\n"
+            + "%s Timestamp DEFAULT now(),\n"
             + ")\n"
             + "CLUSTER BY(%s)",
         schemaName, tableName,
@@ -103,6 +104,7 @@ public class DatabendSqlOperations extends JdbcSqlOperations {
       try {
         tmpFile = Files.createTempFile(tmpTableName + "-", ".tmp").toFile();
         writeBatchToFileJSONEACHROW(tmpFile, records);
+        
 
         ClickHouseConnection conn = connection.unwrap(ClickHouseConnection.class);
         ClickHouseStatement sth = conn.createStatement();

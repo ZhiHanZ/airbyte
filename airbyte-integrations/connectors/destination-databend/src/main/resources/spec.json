@@ -8,7 +8,7 @@
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "Databend Destination Spec",
     "type": "object",
-    "required": ["host", "port", "database", "username"],
+    "required": ["host", "port", "database",  "username"],
     "additionalProperties": true,
     "properties": {
       "host": {
@@ -24,7 +24,7 @@
         "minimum": 0,
         "maximum": 65536,
         "default": 8123,
-        "examples": ["8123"],
+        "examples": ["443"],
         "order": 1
       },
       "database": {
@@ -37,14 +37,14 @@
         "title": "User",
         "description": "Username to use to access the database.",
         "type": "string",
-        "order": 4
+        "order": 5
       },
       "password": {
         "title": "Password",
         "description": "Password associated with the username.",
         "type": "string",
         "airbyte_secret": true,
-        "order": 5
+        "order": 6
       },
       "ssl": {
         "title": "SSL Connection",

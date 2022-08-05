@@ -14,6 +14,8 @@ from .config import WriterConfig, NamespaceStreamPair, make_ns_pair
 from .sqls import *
 from .buffer import CSVBuffer
 
+logger = logging.getLogger("airbyte")
+
 class DestinationDatabendPy(Destination):
     def write(
         self, config: Mapping[str, Any], configured_catalog: ConfiguredAirbyteCatalog, input_messages: Iterable[AirbyteMessage]
@@ -33,21 +35,25 @@ class DestinationDatabendPy(Destination):
         :param input_messages: The stream of input messages received from the source
         :return: Iterable of AirbyteStateMessages wrapped in AirbyteMessage structs
         """
+        self.logger = logger
         cfgs = dict(zip(list(map(NamespaceStreamPair, configured_catalog.streams)), list(map(WriterConfig, configured_catalog.streams))))
         connector = ClickhouseConnector()
-        connector.connect(**config)
+        connector.connect(self.logger, **config)
         schema = config["database"]
         connector.fetch_all(create_database(schema))
         buffers = {}
         for k, v in cfgs.items():
             connector.fetch_all(create_stage((v.get_stage())))
             buffers[k] = CSVBuffer(v, connector)
+        
+        self.logger.info(f"Process message")
         for message in input_messages:
+            self.logger.info(f"Received message: {message}")
             if message.type == Type.STATE:
                 # Emitting a state message indicates that all records which came before it have been written to the destination. So we flush
                 # the queue to ensure writes happen, then output the state message to indicate it's safe to checkpoint state
                 for k, v in buffers.items():
-                    logging.getLogger("airbyte").info(f"Flushing buffer for {v.config}")
+                    self.logger.info(f"Flushing buffer for {v.config}")
                     v.flush()
                     connector.fetch_all(create_table(schema, v.config.get_tmp_table_name()))
                     connector.fetch_all(create_table(schema, v.config.get_dst_table_name()))
@@ -55,7 +61,7 @@ class DestinationDatabendPy(Destination):
                     connector.fetch_all(remove_stage(v.config.get_stage()))
                     v.clean()
                     if v.config.stream.destination_sync_mode == DestinationSyncMode.overwrite:
-                        logging.getLogger("airbyte").info(f"Overwrite mode detected Dropping table {schema}.{v.config.get_dst_table_name()}")
+                        self.logger.info(f"Overwrite mode detected Dropping table {schema}.{v.config.get_dst_table_name()}")
                         connector.fetch_all(truncate_table(schema, v.config.get_dst_table_name()))
                     
                     connector.fetch_all(copy_table(schema, v.config.get_tmp_table_name(), v.config.get_dst_table_name()))
@@ -65,9 +71,26 @@ class DestinationDatabendPy(Destination):
                 record = message.record
                 p = make_ns_pair(record.namespace, record.stream)
                 if p in buffers:
+                    self.logger.info(f"Writing {record} to buffer {p}")
                     buffers[p].add(record)
                 else :
-                    logging.getLogger("airbyte").warn(f"Received record for unknown stream {p}")
+                    self.logger.warn(f"Received record for unknown stream {p}")
+            else:
+                self.logger.warn(f"Received unknown message type {message.type}")
+        for k, v in buffers.items():
+            self.logger.info(f"Flushing buffer for {v.config}")
+            v.flush()
+            connector.fetch_all(create_table(schema, v.config.get_tmp_table_name()))
+            connector.fetch_all(create_table(schema, v.config.get_dst_table_name()))
+            connector.fetch_all(copy_into_table(schema, v.config.get_tmp_table_name(), v.config.get_stage(), v.config.get_stage_path(), v.get_uploaded_files_str()))
+            connector.fetch_all(remove_stage(v.config.get_stage()))
+            v.clean()
+            if v.config.stream.destination_sync_mode == DestinationSyncMode.overwrite:
+                self.logger.info(f"Overwrite mode detected Dropping table {schema}.{v.config.get_dst_table_name()}")
+                connector.fetch_all(truncate_table(schema, v.config.get_dst_table_name()))
+            
+            connector.fetch_all(copy_table(schema, v.config.get_tmp_table_name(), v.config.get_dst_table_name()))
+            connector.fetch_all(drop_table(schema, v.config.get_tmp_table_name()))
         # pair = map(NamespaceStreamPair, )
         # for stream in pair:
         # cfg = map(WriterConfig, configured_catalog.streams)
@@ -90,9 +113,10 @@ class DestinationDatabendPy(Destination):
         :return: AirbyteConnectionStatus indicating a Success or Failure
         """
         try:
-            logging.getLogger("airbyte").info("Checking connection to databend destination")
+            logger.info("Checking connection to databend destination")
+            self.logger = logger
             connector = ClickhouseConnector()
-            connector.connect(**config)
+            connector.connect(logger, **config)
             connector.fetch_all(create_database(config["database"]))
             connector.fetch_all(create_table(config["database"], "__airbyte_tmp_test_123"))
             connector.fetch_all(drop_table(config["database"], "__airbyte_tmp_test_123"))

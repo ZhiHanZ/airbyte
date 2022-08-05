@@ -10,24 +10,35 @@ import io.airbyte.commons.json.Jsons;
 import io.airbyte.db.factory.DataSourceFactory;
 import io.airbyte.db.factory.DatabaseDriver;
 import io.airbyte.db.jdbc.JdbcDatabase;
+import io.airbyte.integrations.base.AirbyteMessageConsumer;
 import io.airbyte.integrations.base.Destination;
 import io.airbyte.integrations.base.IntegrationRunner;
 import io.airbyte.integrations.base.ssh.SshWrappedDestination;
 import io.airbyte.integrations.destination.NamingConventionTransformer;
 import io.airbyte.integrations.destination.jdbc.AbstractJdbcDestination;
+import io.airbyte.integrations.destination.record_buffer.FileBuffer;
+import io.airbyte.integrations.destination.s3.csv.CsvSerializedBuffer;
+import io.airbyte.integrations.destination.staging.StagingConsumerFactory;
+
 import io.airbyte.protocol.models.AirbyteConnectionStatus;
+import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.airbyte.protocol.models.AirbyteConnectionStatus.Status;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
+import io.airbyte.protocol.models.AirbyteMessage;
 import javax.sql.DataSource;
 import java.util.HashMap;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.Map;
+import java.util.UUID;
 
 public class DatabendDestination extends AbstractJdbcDestination implements Destination {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(DatabendDestination.class);
+
+  public static final int UPLOAD_RETRY_LIMIT = 3;
+
 
   public static final String DRIVER_CLASS = DatabaseDriver.CLICKHOUSE.getDriverClassName();
 
@@ -41,13 +52,22 @@ public class DatabendDestination extends AbstractJdbcDestination implements Dest
           "sslmode", "none");
 
   public static Destination sshWrappedDestination() {
-    return new SshWrappedDestination(new DatabendDestination(), HOST_KEY, PORT_KEY);
+    return new SshWrappedDestination(new DatabendDestination(new DatabendSQLNameTransformer()), HOST_KEY, PORT_KEY);
   }
 
-  public DatabendDestination() {
-    super(DRIVER_CLASS, new DatabendSQLNameTransformer(), new DatabendSqlOperations());
+  public DatabendDestination(final NamingConventionTransformer nameTransformer) {
+    super(DRIVER_CLASS, new DatabendSQLNameTransformer(), new DatabendInternalStagingSqlOperations(nameTransformer));
   }
+  private static void attemptSQLCreateAndDropStages(final String outputSchema, final JdbcDatabase database, final NamingConventionTransformer namingResolver,
+  final DatabendInternalStagingSqlOperations sqlOperations)
+  throws Exception {
+// verify we have permissions to create/drop stage
+    final String outputTableName = namingResolver.getIdentifier("_airbyte_connection_test_" + UUID.randomUUID().toString().replaceAll("-", ""));
+    final String stageName = sqlOperations.getStageName(outputSchema, outputTableName);
+    sqlOperations.createStageIfNotExists(database, stageName);
+    sqlOperations.dropStageIfExists(database, stageName);
 
+  }
   @Override
   public JsonNode toJdbcConfig(final JsonNode config) {
     final String jdbcUrl = String.format("jdbc:clickhouse://%s:%s/%s?",
@@ -69,15 +89,30 @@ public class DatabendDestination extends AbstractJdbcDestination implements Dest
   private boolean useSsl(final JsonNode config) {
     return !config.has("ssl") || config.get("ssl").asBoolean();
   }
-
+  @Override
+  public AirbyteMessageConsumer getConsumer(final JsonNode config,
+                                            final ConfiguredAirbyteCatalog catalog,
+                                            final Consumer<AirbyteMessage> outputRecordCollector) {
+    return new StagingConsumerFactory().create(
+        outputRecordCollector,
+        getDatabase(getDataSource(config)),
+        new DatabendInternalStagingSqlOperations(getNamingResolver()),
+        getNamingResolver(),
+        CsvSerializedBuffer.createFunction(null, () -> new FileBuffer(CsvSerializedBuffer.CSV_GZ_SUFFIX)),
+        config,
+        catalog,
+        true);
+  }
   @Override
   public AirbyteConnectionStatus check(final JsonNode config) {
     final DataSource dataSource = getDataSource(config);
     try {
       final JdbcDatabase database = getDatabase(dataSource);
       final NamingConventionTransformer namingResolver = getNamingResolver();
+      final DatabendInternalStagingSqlOperations databendInternalStagingSqlOperations = new DatabendInternalStagingSqlOperations(namingResolver);
       final String outputSchema = namingResolver.getIdentifier(config.get("database").asText());
       attemptSQLCreateAndDropTableOperations(outputSchema, database, namingResolver, getSqlOperations());
+      attemptSQLCreateAndDropStages(outputSchema, database, namingResolver, databendInternalStagingSqlOperations);
       return new AirbyteConnectionStatus().withStatus(Status.SUCCEEDED);
     } catch (final Exception e) {
       LOGGER.error("Exception while checking connection: ", e);
