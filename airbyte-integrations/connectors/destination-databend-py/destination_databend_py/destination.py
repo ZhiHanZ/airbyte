@@ -7,8 +7,8 @@ import logging
 from typing import Any, Iterable, Mapping
 
 from airbyte_cdk import AirbyteLogger
-from airbyte_cdk.destinations import Destination
-from airbyte_cdk.models import AirbyteConnectionStatus, AirbyteMessage, ConfiguredAirbyteCatalog, Status, Type, DestinationSyncMode
+from .airbyte_destination import Destination
+from .airbyte_protocol import AirbyteConnectionStatus, AirbyteMessage, ConfiguredAirbyteCatalog, Status, Type, DestinationSyncMode
 from .connector import ClickhouseConnector
 from .config import WriterConfig, NamespaceStreamPair, make_ns_pair
 from .sqls import *
