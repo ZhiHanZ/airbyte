@@ -1,7 +1,0 @@
-*
-!Dockerfile
-!main.py
-!destination_databend_py
-!setup.py
-!requirements.txt
-!.venv
