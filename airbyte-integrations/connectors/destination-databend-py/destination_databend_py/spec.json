@@ -8,7 +8,7 @@
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "Destination Databend",
     "type": "object",
-    "required": ["host", "port", "username", "password", "database"],
+    "required": ["host", "port", "username", "password", "database", "enableHTTPS"],
     "additionalProperties": false,
     "properties": {
       "host": {
@@ -45,6 +45,13 @@
         "type": "string",
         "description": "sql database name",
         "order": 5
+      },
+      "enableHTTPS": {
+        "title": "enable https",
+        "type": "boolean",
+        "description": "enable https",
+        "default": false,
+        "order": 6
       }
     }
   }
