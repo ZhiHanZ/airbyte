@@ -46,9 +46,8 @@ class DestinationDatabendPy(Destination):
             connector.fetch_all(create_stage((v.get_stage())))
             buffers[k] = CSVBuffer(v, connector)
         
-        self.logger.info(f"Process message")
         for message in input_messages:
-            self.logger.info(f"Received message: {message}")
+            
             if message.type == Type.STATE:
                 # Emitting a state message indicates that all records which came before it have been written to the destination. So we flush
                 # the queue to ensure writes happen, then output the state message to indicate it's safe to checkpoint state
@@ -120,8 +119,7 @@ class DestinationDatabendPy(Destination):
             connector.fetch_all(create_database(config["database"]))
             connector.fetch_all(create_table(config["database"], "__airbyte_tmp_test_123"))
             connector.fetch_all(drop_table(config["database"], "__airbyte_tmp_test_123"))
-            connector.fetch_all(create_stage("__airbyte_tmp_test_123"))
-            connector.fetch_all(drop_stage("__airbyte_tmp_test_123"))
+            
             return AirbyteConnectionStatus(status=Status.SUCCEEDED)
         except Exception as e:
             return AirbyteConnectionStatus(status=Status.FAILED, message=f"An exception occurred: {repr(e)}")

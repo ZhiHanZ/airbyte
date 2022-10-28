@@ -14,6 +14,37 @@ from .config import NamespaceStreamPair, WriterConfig
 from .sqls import *
 from .connector import ClickhouseConnector
 
+class JSONBuffer():
+    def __init__(self, config : WriterConfig, databend_cli : ClickhouseConnector, max_buffer_size = 128 * 1024 * 1024 ):
+        self.max_buffer_size = max_buffer_size
+        self.buffer_size = 0
+        self.stage_id = 0
+        self.config : WriterConfig = config
+        self.uploaded_files = []
+        self.buffer = []
+        self.pair = config.get_pair()
+        self.directory = tempfile.mkdtemp(prefix=str(self.pair))
+        self.cli = databend_cli
+        self.logger = databend_cli.logger
+    def add(self, message: AirbyteRecordMessage):
+        i = {"_airbyte_ab_id": str(uuid.uuid4()), "_airbyte_data": json.dumps(message.data), "_airbyte_emitted_at": datetime.datetime.fromtimestamp(float(message.emitted_at) / 1000.0).strftime('%Y-%m-%d %H:%M:%S.%f')}
+        self.buffer_size += sys.getsizeof(i) 
+        self.buffer.append(json.dumps(i))
+        
+    def flush(self):
+        full_name = f"{self.directory}/{self.pair.name}_{self.pair.namespace}_{self.stage_id}.csv"
+        self.logger.info(f"Flushing buffer to {full_name} size {self.buffer_size}")
+        with open(f"{full_name}", "w") as f:
+            writer = csv.writer(f, doublequote=True, quoting=csv.QUOTE_ALL, escapechar='\\')
+            writer.writerows(self.buffer)
+            
+            self.buffer.clear()
+            self.buffer = []
+            self.buffer_size = 0
+        self.upload_file_to_stage(file_name=full_name, stage=self.config.get_stage(), stage_path=self.config.get_stage_path())
+        if os.path.isfile(full_name):
+            os.remove(full_name)
+
 class CSVBuffer():
     def __init__(self, config : WriterConfig, databend_cli : ClickhouseConnector, max_buffer_size = 128 * 1024 * 1024 ):
         self.max_buffer_size = max_buffer_size

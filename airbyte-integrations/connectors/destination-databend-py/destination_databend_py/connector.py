@@ -13,8 +13,12 @@ class ClickhouseConnector():
                 port,
                 username="root",
                 password="",
-                database=default_database):
-        self._uri = f"clickhouse+http://{username}:{password}@{host}:{port}/{database}?protocol=https"
+                database=default_database,
+                enableHTTPS=False,):
+        if enableHTTPS:
+            self._uri = f"clickhouse+http://{username}:{password}@{host}:{port}/{database}?protocol=https"
+        else:
+            self._uri = f"clickhouse+http://{username}:{password}@{host}:{port}/{database}?protocol=http"
         logger.debug(self._uri)
         self._additonal_headers = dict()
         self.logger = logger
